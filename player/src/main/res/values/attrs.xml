@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <declare-styleable name="VideoPlayerView">
+        <attr name="autoPlay" format="boolean" />
+        <attr name="showControls" format="boolean" />
+        <attr name="enableGestures" format="boolean" />
+        <attr name="showFastForwardRewind" format="boolean" />
+        <attr name="primaryColor" format="color" />
+        <attr name="orientation" format="enum">
+            <enum name="portrait" value="0" />
+            <enum name="landscape" value="1" />
+            <enum name="sensor" value="2" />
+        </attr>
+        <attr name="resizeMode" format="enum">
+            <enum name="fit" value="0" />
+            <enum name="fill" value="1" />
+            <enum name="zoom" value="2" />
+            <enum name="ratio_16_9" value="3" />
+            <enum name="ratio_4_3" value="4" />
+        </attr>
+    </declare-styleable>
+</resources>
