@@ -9,9 +9,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
-import com.androidx.multimedia.video.domain.model.VideoSource
-import com.androidx.multimedia.video.ui.compose.VideoPlayer
-import com.androidx.multimedia.video.ui.compose.rememberVideoPlayerState
+import androidx.multimedia.video.domain.model.VideoSource
+import androidx.multimedia.video.ui.compose.VideoPlayer
+import androidx.multimedia.video.ui.compose.rememberVideoPlayerState
 
 class ComposeDemoActivity : ComponentActivity() {
 

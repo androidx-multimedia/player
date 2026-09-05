@@ -4,8 +4,8 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
-import com.androidx.multimedia.video.domain.model.VideoSource
-import com.androidx.multimedia.video.ui.view.VideoPlayerView
+import androidx.multimedia.video.domain.model.VideoSource
+import androidx.multimedia.video.ui.view.VideoPlayerView
 
 class XmlDemoActivity : AppCompatActivity() {
 

@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.androidx.multimedia.video"
+    namespace = "androidx.multimedia.video"
     compileSdk = 37
 
     defaultConfig {
@@ -42,7 +42,7 @@ android {
 }
 
 dependencies {
-    api(libs.codec.encoder)
+    api(project(":codec-encoder"))
 
     implementation(libs.androidx.core.ktx)
 

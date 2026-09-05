@@ -27,3 +27,4 @@ dependencyResolutionManagement {
 rootProject.name = "Multimedia Player"
 include(":app")
 include(":player")
+include(":codec-encoder")

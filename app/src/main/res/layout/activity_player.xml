@@ -5,7 +5,7 @@
     android:layout_height="match_parent"
     android:background="#000000">
 
-    <com.androidx.multimedia.video.ui.view.VideoPlayerView
+    <androidx.multimedia.video.ui.view.VideoPlayerView
         android:id="@+id/videoPlayerView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
