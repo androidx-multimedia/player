@@ -42,7 +42,10 @@ android {
 }
 
 dependencies {
+    api(libs.codec.encoder)
+
     implementation(libs.androidx.core.ktx)
+
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
 

@@ -1,6 +1,7 @@
 package com.androidx.multimedia.player
 
 import android.Manifest
+import android.app.ProgressDialog
 import android.content.ContentUris
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -14,10 +15,22 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.androidx.codec.encoder.core.data.firebase.FirebaseStorageProvider
+import com.androidx.codec.encoder.core.data.repository.MediaRepositoryImpl
+import com.androidx.codec.encoder.core.domain.model.MediaFile
+import com.androidx.codec.encoder.core.domain.model.MediaType
+import com.androidx.codec.encoder.core.domain.usecase.ProcessAndSyncVideoUseCase
+import com.androidx.codec.encoder.core.domain.usecase.SyncMediaMetadataUseCase
+import com.androidx.codec.encoder.core.domain.usecase.VideoProcessingResult
 import com.androidx.multimedia.player.adapter.VideoAdapter
 import com.androidx.multimedia.player.model.LocalVideoItem
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
 
@@ -28,6 +41,18 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnSampleMp4: Button
     private lateinit var btnSampleHls: Button
     private lateinit var btnSampleS22: Button
+
+    private val firebaseStorageProvider by lazy {
+        FirebaseStorageProvider(
+            context = this,
+            defaultStorageUrl = "gs://linux-db.firebasestorage.app",
+            appName = "Multimedia-Player"
+
+        )
+    }
+    private val mediaRepository by lazy { MediaRepositoryImpl(firebaseStorageProvider) }
+    private val processAndSyncVideoUseCase by lazy { ProcessAndSyncVideoUseCase(mediaRepository) }
+    private val syncMediaMetadataUseCase by lazy { SyncMediaMetadataUseCase(mediaRepository) }
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -89,6 +114,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun checkAndLoadVideos() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            syncMediaMetadataUseCase.execute(
+                context = applicationContext,
+                databaseUrl = "https://pak-e-news-default-rtdb.firebaseio.com/"
+            )
+        }
         val permission = getRequiredPermission()
         if (ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED) {
             loadLocalVideos()
@@ -142,7 +173,7 @@ class MainActivity : AppCompatActivity() {
                 while (cursor.moveToNext()) {
                     val id = cursor.getLong(idColumn)
                     val name = cursor.getString(nameColumn) ?: "Video_$id"
-                    val path = cursor.getString(dataColumn)
+                    val path = cursor.getString(dataColumn) ?: ""
                     val duration = cursor.getLong(durationColumn)
                     val size = cursor.getLong(sizeColumn)
                     val contentUri = ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id)
@@ -166,19 +197,72 @@ class MainActivity : AppCompatActivity() {
         if (videoList.isNotEmpty()) {
             rvVideos.visibility = View.VISIBLE
             emptyContainer.visibility = View.GONE
-            tvVideoCount.text = "${videoList.size} Videos"
+            tvVideoCount.text = "${videoList.size} Local Videos"
 
             val adapter = VideoAdapter(videoList) { selectedVideo ->
-                PlayerActivity.startWithUri(
-                    context = this,
-                    uri = selectedVideo.uri,
-                    title = selectedVideo.title,
-                    subtitle = "Local Storage Video"
-                )
+                processAndPlayVideo(selectedVideo)
             }
             rvVideos.adapter = adapter
         } else {
             showEmptyState()
+        }
+    }
+
+    private fun processAndPlayVideo(selectedVideo: LocalVideoItem) {
+        val progressDialog = ProgressDialog(this).apply {
+            setTitle("Processing Video")
+            setMessage("Compressing video via Codec-Encoder...")
+            setCancelable(false)
+            show()
+        }
+
+        val progressJob = lifecycleScope.launch(Dispatchers.Main) {
+            mediaRepository.observeSyncProgress().collect { syncProgress ->
+                syncProgress?.let { progress ->
+                    val total = progress.totalBytes
+                    val transferred = progress.bytesTransferred
+                    val percent = if (total > 0) (transferred * 100 / total) else 0
+                    val transferredMb = String.format(Locale.US, "%.2f", transferred / (1024.0 * 1024.0))
+                    val totalMb = String.format(Locale.US, "%.2f", total / (1024.0 * 1024.0))
+
+                    progressDialog.setMessage(
+                        "Status: Uploading to Firebase Cloud ($percent%)\n" +
+                        "Progress: $transferredMb MB / $totalMb MB"
+                    )
+                }
+            }
+        }
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val mediaFile = MediaFile(
+                uri = selectedVideo.uri.toString(),
+                mediaType = MediaType.VIDEO,
+                filePath = selectedVideo.path ?: "",
+                fileName = selectedVideo.title,
+                sizeInBytes = selectedVideo.sizeBytes,
+                durationMs = selectedVideo.durationMs
+            )
+
+            val result = processAndSyncVideoUseCase.processAndSync(mediaFile)
+
+            withContext(Dispatchers.Main) {
+                progressJob.cancel()
+                progressDialog.dismiss()
+                when (result) {
+                    is VideoProcessingResult.Success -> {
+                        Toast.makeText(this@MainActivity, "Upload & Processing Completed!", Toast.LENGTH_SHORT).show()
+                        PlayerActivity.startWithUri(
+                            context = this@MainActivity,
+                            uri = Uri.parse(result.playableUri),
+                            title = selectedVideo.title,
+                            subtitle = "Compressed Cloud Media"
+                        )
+                    }
+                    is VideoProcessingResult.Error -> {
+                        Toast.makeText(this@MainActivity, "Error: ${result.message}", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
         }
     }
 
