@@ -60,14 +60,15 @@ dependencies {
     androidTestImplementation(libs.androidx.espresso.core)
 }
 
-publishing {
-    publications {
-        create<MavenPublication>("release") {
-            groupId = "com.androidx.multimedia"
-            artifactId = "video-player"
-            version = "1.0.0"
-
-            from(components["release"])
+afterEvaluate {
+    publishing {
+        publications {
+            create<MavenPublication>("release") {
+                from(components["release"])
+                groupId = findProperty("group") as String? ?: "com.github.androidx-multimedia.player"
+                artifactId = "player"
+                version = findProperty("version") as String? ?: "1.0.0"
+            }
         }
     }
 }

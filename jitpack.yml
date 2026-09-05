@@ -1,0 +1,6 @@
+jdk:
+  - openjdk17
+before_install:
+  - echo "sdk.dir=$ANDROID_HOME" > local.properties
+install:
+  - ./gradlew :player:publishToMavenLocal -Pgroup=com.github.androidx-multimedia.player -Pversion=$VERSION
