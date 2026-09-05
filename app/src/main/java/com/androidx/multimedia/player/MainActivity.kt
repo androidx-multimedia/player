@@ -18,13 +18,13 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.androidx.codec.encoder.core.data.firebase.FirebaseStorageProvider
-import com.androidx.codec.encoder.core.data.repository.MediaRepositoryImpl
-import com.androidx.codec.encoder.core.domain.model.MediaFile
-import com.androidx.codec.encoder.core.domain.model.MediaType
-import com.androidx.codec.encoder.core.domain.usecase.ProcessAndSyncVideoUseCase
-import com.androidx.codec.encoder.core.domain.usecase.SyncMediaMetadataUseCase
-import com.androidx.codec.encoder.core.domain.usecase.VideoProcessingResult
+import androidx.media.codec.core.data.engine.MediaFrameEncoder
+import androidx.media.codec.core.data.repository.MediaRepositoryImpl
+import androidx.media.codec.core.domain.model.MediaFile
+import androidx.media.codec.core.domain.model.MediaType
+import androidx.media.codec.core.domain.usecase.ProcessMediaCatalogUseCase
+import androidx.media.codec.core.domain.usecase.ProcessVideoFrameUseCase
+import androidx.media.codec.core.domain.usecase.VideoProcessingResult
 import com.androidx.multimedia.player.adapter.VideoAdapter
 import com.androidx.multimedia.player.model.LocalVideoItem
 import kotlinx.coroutines.Dispatchers
@@ -42,17 +42,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnSampleHls: Button
     private lateinit var btnSampleS22: Button
 
-    private val firebaseStorageProvider by lazy {
-        FirebaseStorageProvider(
-            context = this,
-            defaultStorageUrl = "gs://linux-db.firebasestorage.app",
-            appName = "Multimedia-Player"
-
-        )
+    private val mediaFrameEncoder by lazy {
+        MediaFrameEncoder(context = this)
     }
-    private val mediaRepository by lazy { MediaRepositoryImpl(firebaseStorageProvider) }
-    private val processAndSyncVideoUseCase by lazy { ProcessAndSyncVideoUseCase(mediaRepository) }
-    private val syncMediaMetadataUseCase by lazy { SyncMediaMetadataUseCase(mediaRepository) }
+    private val mediaRepository by lazy { MediaRepositoryImpl(mediaFrameEncoder) }
+    private val processVideoFrameUseCase by lazy { ProcessVideoFrameUseCase(mediaRepository) }
+    private val processMediaCatalogUseCase by lazy { ProcessMediaCatalogUseCase(mediaRepository) }
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -115,10 +110,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun checkAndLoadVideos() {
         lifecycleScope.launch(Dispatchers.IO) {
-            syncMediaMetadataUseCase.execute(
-                context = applicationContext,
-                databaseUrl = "https://pak-e-news-default-rtdb.firebaseio.com/"
-            )
+            processMediaCatalogUseCase.execute(context = applicationContext)
         }
         val permission = getRequiredPermission()
         if (ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED) {
@@ -217,8 +209,8 @@ class MainActivity : AppCompatActivity() {
         }
 
         val progressJob = lifecycleScope.launch(Dispatchers.Main) {
-            mediaRepository.observeSyncProgress().collect { syncProgress ->
-                syncProgress?.let { progress ->
+            mediaRepository.observeFrameProgress().collect { frameProgress ->
+                frameProgress?.let { progress ->
                     val total = progress.totalBytes
                     val transferred = progress.bytesTransferred
                     val percent = if (total > 0) (transferred * 100 / total) else 0
@@ -226,7 +218,7 @@ class MainActivity : AppCompatActivity() {
                     val totalMb = String.format(Locale.US, "%.2f", total / (1024.0 * 1024.0))
 
                     progressDialog.setMessage(
-                        "Status: Uploading to Firebase Cloud ($percent%)\n" +
+                        "Status: Processing Frame ($percent%)\n" +
                         "Progress: $transferredMb MB / $totalMb MB"
                     )
                 }
@@ -243,14 +235,14 @@ class MainActivity : AppCompatActivity() {
                 durationMs = selectedVideo.durationMs
             )
 
-            val result = processAndSyncVideoUseCase.processAndSync(mediaFile)
+            val result = processVideoFrameUseCase.processFrame(mediaFile)
 
             withContext(Dispatchers.Main) {
                 progressJob.cancel()
                 progressDialog.dismiss()
                 when (result) {
                     is VideoProcessingResult.Success -> {
-                        Toast.makeText(this@MainActivity, "Upload & Processing Completed!", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@MainActivity, "Video frame processing completed!", Toast.LENGTH_SHORT).show()
                         PlayerActivity.startWithUri(
                             context = this@MainActivity,
                             uri = Uri.parse(result.playableUri),
